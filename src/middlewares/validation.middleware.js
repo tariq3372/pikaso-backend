@@ -14,6 +14,7 @@ const IDS = check('ids').isArray({ min: 1 });
 const MONGO_ID = check('ids.*').not().isArray().isMongoId().withMessage("Wrong id");
 const NAME = check('name').notEmpty().exists().trim().withMessage("Wrong name");
 const AVATAR = check('avatar').notEmpty().exists().trim().withMessage("Wrong avatar");
+const SIZE = check('size').notEmpty().exists().trim().withMessage("Wrong size");
 
 module.exports.validateRegistrationApi = [
     EMAIL,
@@ -61,13 +62,16 @@ module.exports.validateAddToCartApi = [
     PROMPT,
     RATIO,
     QUANTITY,
-    IMAGE_LINK
+    IMAGE_LINK,
+    SIZE
+
 ]
 
 module.exports.validateUpdateCartApi = [
     CART_ID,
     RATIO,
     QUANTITY,
+    SIZE
 ]
 
 module.exports.validaterRemoveCartApi = [
