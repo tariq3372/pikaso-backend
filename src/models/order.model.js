@@ -8,7 +8,7 @@ const orderSchema = new Schema({
     status: String,
     shipping: String,
     createdAt: Date,
-    updatedAt: Date
+    modifiedAt: Date
 })
 
 const Order = module.exports = mongoose.model('Order', orderSchema)

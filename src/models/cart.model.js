@@ -9,8 +9,10 @@ const cartSchema = new Schema({
     status: String,
     prompt: String,
     ratio: String,
+    size: String,
     images: String,
     createdAt: Date,
+    modifiedAt: Date,
 })
 
 const Cart = module.exports = mongoose.model('Cart', cartSchema)

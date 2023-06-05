@@ -6,7 +6,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const HistoryModel = require("../models/history.model");
 const CartModel = require("../models/cart.model");
-const SettingModel = require("../models/setting.model");
+const PriceModel = require("../models/price.model");
 const { generateImageApi } = require("../api");
 const { Types } = require("mongoose");
 const orderModel = require("../models/order.model");
@@ -15,14 +15,6 @@ const UserBuyAllotment = require("../models/userBuyAllotment");
 
 module.exports.register = async (req, res) => {
   try {
-    // TODO:
-    // 1 Check if user already exists
-    // 2 Check if password and confirm password is same
-    // 3 Generate otp send and send to user email
-    // 4 Get the free allotment id from collection
-    // 5 Bcrypt and salt the password
-    // 6 Set the data and store
-
     const { email, password, confirmPassword } = req.body;
     const userExists = await User.findOne({ email });
     if (userExists?.isVerified === true) {
@@ -76,11 +68,6 @@ module.exports.register = async (req, res) => {
 
 module.exports.verifyOtp = async (req, res) => {
   try {
-    // TODO:
-    // 1 Get the user data from db
-    // 2 Check if otp matches
-    // 3 Generate jwt token
-    // 4 set data and update the user data in db
     const { email, otp } = req.body;
     const { TOKEN_KEY } = process.env;
     const user = await User.findOne({ email: email });
@@ -126,11 +113,6 @@ module.exports.verifyOtp = async (req, res) => {
 
 module.exports.resendOtp = async (req, res) => {
   try {
-    // TODO:
-    // 1 Generate otp
-    // 2 send to user email
-    // 3 update user data in db
-
     const { email } = req.body;
     const otp = generateOtp();
     const user = await User.findOneAndUpdate(
@@ -173,13 +155,8 @@ module.exports.resendOtp = async (req, res) => {
 
 module.exports.login = async (req, res) => {
   try {
-    // TODO:
-    // 1 Get the user from db
-    // 2 Compare the user password
-    // 3 Generate token
-    // 4 Update user db
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email, isVerified: true });
     if (user) {
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (isValidPassword) {
@@ -359,7 +336,6 @@ module.exports.resetPassword = async (req, res) => {
 
 module.exports.userData = async (req, res) => {
   try {
-    // fing how many carts user have with pending status
     const { token } = req.app.locals;
     if (token) {
       const user = await User.findOne({ token });
@@ -397,24 +373,28 @@ module.exports.userData = async (req, res) => {
 module.exports.buyTries = async (req, res) => {
   try {
     const { token } = req.app.locals;
-    if(token) {
+    if (token) {
       const user = await User.findOne({ token: token });
-      if(user) {
-        const userBuyAllotment = await UserBuyAllotment.findOneAndUpdate({ userId: user._id, isCompleted: false }, { isCompleted: true });
-        const buyAllotmentModel = await BuyAllotmentModel.findOne({ isDeleted: false });
+      if (user) {
+        const userBuyAllotment = await UserBuyAllotment.findOneAndUpdate(
+          { userId: user._id, isCompleted: false },
+          { isCompleted: true, modifiedAt: new Date() }
+        );
+        const buyAllotmentModel = await BuyAllotmentModel.findOne({
+          isDeleted: false,
+        });
         const data = {
           userId: user?._id,
           buyAllotmentId: buyAllotmentModel?._id,
           buyAllotmentUsage: 0,
           isCompleted: false,
           createdAt: new Date(),
-          modifiedAt: new Date()
-        }
+        };
         const newUserBuyAllotment = await UserBuyAllotment.create(data);
         return res.status(200).send({
           success: true,
-          message: "Internal server error"
-        })
+          message: "Internal server error",
+        });
       } else {
         return res.status(400).send({
           success: false,
@@ -435,15 +415,11 @@ module.exports.buyTries = async (req, res) => {
       message: "Internal server error",
     });
   }
-}
+};
 
 // Generation Flow
 module.exports.imageGeneration = async (req, res) => {
   try {
-    // TODO:
-    // 1- Get user
-    // 2- Check usage
-    // 3- Update User data
     const { prompt, ratio, numberOfImages, style } = req.body;
     const { token } = req.app.locals;
     if (token) {
@@ -457,7 +433,6 @@ module.exports.imageGeneration = async (req, res) => {
           userId: user?._id,
           isCompleted: false,
         });
-
         if (!freeAllotment || !buyAllotment) {
           console.log("freeAllotment Or BuyAllotment DB Issue");
           return res.status(500).send({
@@ -465,7 +440,6 @@ module.exports.imageGeneration = async (req, res) => {
             message: "Internal Server Error",
           });
         }
-
         if (
           freeAllotment?.limit > user?.freeAllotmentUsage ||
           buyAllotment?.limit > userBuyAllotment?.buyAllotmentUsage
@@ -493,11 +467,11 @@ module.exports.imageGeneration = async (req, res) => {
               { new: true }
             );
           }
-          const setting = await SettingModel.findOne({
+          const price = await PriceModel.findOne({
             isDeleted: false,
             ratio: ratio,
           });
-          if (setting) {
+          if (price) {
             let data;
             // TODO:
             // Call Araby.ai api's here
@@ -539,14 +513,14 @@ module.exports.imageGeneration = async (req, res) => {
             }
 
             const history = await HistoryModel.create(data);
-            data.cost = setting?.cost;
+            data.cost = price?.cost;
             return res.status(200).send({
               success: true,
               data,
             });
           } else {
             return res.status(500).send({
-              message: "Internal server error setting model",
+              message: "Internal server error price model",
               error: true,
             });
           }
@@ -584,20 +558,21 @@ module.exports.imageGenerationOneTime = async (req, res) => {
     const data = {
       prompt: prompt,
       ratio: ratio,
-      images:"https://arabai-images.s3.me-south-1.amazonaws.com/202305-1712-1112-3bfb903d-9ab3-4d20-84ce-19c46f48ecce_1684311072.jpeg",
+      images:
+        "https://arabai-images.s3.me-south-1.amazonaws.com/202305-1712-1112-3bfb903d-9ab3-4d20-84ce-19c46f48ecce_1684311072.jpeg",
       createdAt: new Date(),
     };
     return res.status(200).send({
       success: true,
-      data
-    })
+      data,
+    });
   } catch (err) {
     return res.status(500).send({
       error: true,
       message: "Internal server error",
     });
   }
-}
+};
 
 // Cart Flow
 module.exports.getCart = async (req, res) => {
@@ -619,6 +594,7 @@ module.exports.getCart = async (req, res) => {
               status: { $first: "$status" },
               prompt: { $first: "$prompt" },
               ratio: { $first: "$ratio" },
+              size: { $first: "$size" },
               images: { $first: "$images" },
               createdAt: { $first: "$createdAt" },
               totalCost: { $sum: "$cost" },
@@ -661,20 +637,30 @@ module.exports.getCart = async (req, res) => {
 
 module.exports.addToCart = async (req, res) => {
   try {
-    const { quantity, prompt, imageLink, ratio } = req.body;
+    const { quantity, prompt, imageLink, ratio, size } = req.body;
     const { token } = req.app.locals;
     if (token) {
       const user = await User.findOne({ token: token });
       if (user) {
-        const setting = await SettingModel.findOne({
-          isDeleted: false,
-          ratio: ratio,
-        });
-        if (setting) {
+        const result = await PriceModel.findOne(
+          {
+            isDeleted: false,
+            ratio: ratio,
+            "cost.size": size,
+          },
+          {
+            ratio: 1,
+            createdAt: 1,
+            modifiedAt: 1,
+            cost: { $elemMatch: { size: size } },
+          }
+        );
+        if (result) {
           const data = {
             userId: user?._id,
-            cost: Number((quantity * setting?.cost).toFixed(2)),
-            costPerQuantity: Number((setting?.cost).toFixed(2)),
+            cost: Number((quantity * result?.cost[0]?.price).toFixed(2)),
+            costPerQuantity: Number((result?.cost[0]?.price).toFixed(2)),
+            size: result?.cost[0]?.size,
             quantity: quantity,
             status: "Pending",
             prompt: prompt,
@@ -690,13 +676,13 @@ module.exports.addToCart = async (req, res) => {
             });
           } else {
             return res.status(500).send({
-              message: "Internal server error setting model",
+              message: "Internal server error Cart model",
               error: true,
             });
           }
         } else {
           return res.status(500).send({
-            message: "Internal server error setting model",
+            message: "Internal server error price model",
             error: true,
           });
         }
@@ -724,16 +710,30 @@ module.exports.addToCart = async (req, res) => {
 
 module.exports.updateCart = async (req, res) => {
   try {
-    const { cartId, quantity, ratio } = req.body;
-    const setting = await SettingModel.findOne({
-      isDeleted: false,
-      ratio: ratio,
-    });
-    if (setting) {
-      const newCost = Number((quantity * setting?.cost).toFixed(2));
+    const { cartId, quantity, ratio, size } = req.body;
+    const result = await PriceModel.findOne(
+      {
+        isDeleted: false,
+        ratio: ratio,
+        "cost.size": size,
+      },
+      {
+        ratio: 1,
+        createdAt: 1,
+        modifiedAt: 1,
+        cost: { $elemMatch: { size: size } },
+      }
+    );
+    if (result) {
+      const newCost = Number((quantity * result?.cost[0]?.price).toFixed(2));
       const cart = await CartModel.findOneAndUpdate(
         { _id: cartId },
-        { cost: newCost, quantity: quantity, costPerQuantity: setting?.cost },
+        {
+          cost: newCost,
+          quantity: quantity,
+          costPerQuantity: result?.cost[0]?.price,
+          modifiedAt: new Date(),
+        },
         { new: true }
       );
       if (cart) {
@@ -749,7 +749,7 @@ module.exports.updateCart = async (req, res) => {
       }
     } else {
       return res.status(500).send({
-        message: "Internal server error setting model",
+        message: "Internal server error price model",
         error: true,
       });
     }
@@ -765,7 +765,6 @@ module.exports.updateCart = async (req, res) => {
 module.exports.removeCart = async (req, res) => {
   try {
     const { _id } = req.params;
-    console.log("_id", _id);
     const cart = await CartModel.deleteOne({ _id: _id });
     if (cart.deletedCount === 1) {
       return res.status(200).send({
@@ -790,10 +789,6 @@ module.exports.removeCart = async (req, res) => {
 // Order Flow
 module.exports.makeOrder = async (req, res) => {
   try {
-    //TODO:
-    // get cart id from user
-    // find the carts where cart id and status is pending
-    // create order and then update all cart for that user
     const { ids } = req.body;
     const convertedIds = ids.map((id) => new Types.ObjectId(id));
     const carts = await CartModel.aggregate([
@@ -825,7 +820,7 @@ module.exports.makeOrder = async (req, res) => {
     if (carts?.length) {
       const updatedCart = await CartModel.updateMany(
         { _id: convertedIds, status: "Pending" },
-        { status: "Completed" }
+        { status: "Completed", modifiedAt: new Date() }
       );
       if (updatedCart?.modifiedCount > 0) {
         const data = {
@@ -834,7 +829,6 @@ module.exports.makeOrder = async (req, res) => {
           cartId: carts[0]?.items?.map((item) => item?._id),
           status: "Pending",
           createdAt: new Date(),
-          updatedAt: new Date(),
         };
         const order = await orderModel.create(data);
         if (order) {

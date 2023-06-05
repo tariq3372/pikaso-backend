@@ -6,7 +6,7 @@ module.exports.check = async(req, res, next) => {
             return res.status(400).send({
                 success: false,
                 message: "Parameters Invalid",
-                errors
+                // errors
             })
         }
         else {

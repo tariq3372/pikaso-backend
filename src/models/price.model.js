@@ -1,12 +1,12 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
-const settingSchema = new Schema({
+const priceSchema = new Schema({
     ratio: String,
-    cost: Number,
+    cost: [{ size: String, price: Number }],
     isDeleted: Boolean,
     createdAt: Date,
     modifiedAt: Date,
 })
 
-const Setting = module.exports = mongoose.model('Setting', settingSchema)
+const Price = module.exports = mongoose.model('Price', priceSchema)
